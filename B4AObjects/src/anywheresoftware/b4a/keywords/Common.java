@@ -69,7 +69,7 @@ import anywheresoftware.b4a.objects.streams.File;
  * These are the internal keywords.
  */
 @ActivityObject
-@Version(9.80f)
+@Version(11.81f)
 public class Common {
 	static {
 		System.out.println("common created.");
@@ -199,11 +199,10 @@ public class Common {
 
 	/**
 	 *Returns the object that raised the event.
-	 *Only valid while inside the event sub.
+	 *Only valid while inside the event sub and before calls to Sleep or Wait For.
 	 *Example:<code>
 	 *Sub Button_Click
-	 * Dim b As Button
-	 * b = Sender
+	 * Dim b As B4XView = Sender
 	 * b.Text = "I've been clicked"
 	 *End Sub</code>
 	 */
@@ -456,7 +455,7 @@ public class Common {
 	 * Shows a non-modal message box with the specified message and title.
 	 *The dialog will show one OK button.
 	 *Note that services cannot show dialogs.
-	 *You can use Wait For to wait for the Msgbox_Result event if you want to continue the code flow after the dialog is dismissed.
+	 *You can use Wait For to wait for the Msgbox_Result event, if you want to continue the code flow after the dialog is dismissed.
 	 *Example:<code>
 	 *MsgboxAsync("Hello world", "This is the title")</code>
 	 */
@@ -646,7 +645,7 @@ public class Common {
 		final CharSequence[] items = new CharSequence[Items.getSize()];
 		boolean[] checked = new boolean[Items.getSize()];
 		int i = 0;
-		for (Entry<Object, Object> e : Items.getObject().entrySet()) {
+		for (Entry<Object, Object> e : ((Map.MyMap)Items.getObject()).entrySet()) {
 			if (e.getKey() instanceof String == false)
 				throw new RuntimeException("Keys must be strings.");
 			items[i] = (String)e.getKey();
@@ -946,8 +945,11 @@ public class Common {
 	}
 	private static PendingIntent createPendingIntentForAlarmManager(BA mine, Object Service) throws ClassNotFoundException {
 		Intent in = new Intent(BA.applicationContext, getComponentClass(mine, Service, true));
+		int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+		if (Build.VERSION.SDK_INT >= 31)
+			flags |= 33554432; //FLAG_MUTABLE
 		return PendingIntent.getBroadcast(mine.context, 1, in,
-				PendingIntent.FLAG_UPDATE_CURRENT);
+				flags);
 	}
 	/**
 	 * Cancels previously scheduled tasks for this service.
@@ -1679,12 +1681,22 @@ public class Common {
 	public static void Sleep(int Milliseconds) {
 
 	}
+	/**
+	 * Inline If - returns TrueValue if Condition is True and False otherwise. Only the relevant expression is evaluated. 
+	 */
+	public static Object IIf (boolean Condition, Object TrueValue, Object FalseValue) {
+		return null;
+	}
 	@Hide
 	public static void Sleep(final BA ba, final ResumableSub rs, int Milliseconds) {
 		BA.handler.postDelayed(new BA.B4ARunnable() {
 
 			@Override
 			public void run() {
+				if (ba == null) {
+					BA.LogError("Sleep failed to resume (ba = null)");
+					return;
+				}
 				boolean isActivity = ba.processBA != null;
 				if (isActivity) {
 					if (ba.processBA.sharedProcessBA.activityBA == null || ba != ba.processBA.sharedProcessBA.activityBA.get()) {//activity recreated

@@ -61,7 +61,7 @@ import anywheresoftware.b4a.objects.ActivityWrapper;
 import anywheresoftware.b4a.objects.collections.List;
 
 @ShortName("Phone")
-@Version(2.50f)
+@Version(2.52f)
 public class Phone {
 	
 	/**
@@ -183,7 +183,7 @@ public class Phone {
 	 *The keys are lower cased.
 	 *Example:<code>
 	 *Dim p As Phone
-	 *Log(GetSettings("android_id"))</code>
+	 *Log(p.GetSettings("android_id"))</code>
 	 */
 	public static String GetSettings(String Settings) {
 		String s = Secure.getString(BA.applicationContext.getContentResolver(), Settings);
@@ -1129,7 +1129,7 @@ public class Phone {
 		/**
 		 * Initializes the object and sets the sensor type and sensor events rate.
 		 *SensorType - One of the TYPE_ constants.
-		 *SensorDelay - A value between 1 (fastest rate) to 3 (slowest rate). This is only a hint to the system.
+		 *SensorDelay - A value between 0 (fastest rate) to 3 (slowest rate). This is only a hint to the system.
 		 */
 		public void Initialize2(int SensorType, int SensorDelay) {
 			this.currentType = SensorType;

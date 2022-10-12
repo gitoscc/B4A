@@ -39,6 +39,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.Drawable.ConstantState;
 import android.os.Build;
+import android.text.Selection;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -51,6 +52,7 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import anywheresoftware.b4a.AbsObjectWrapper;
+import anywheresoftware.b4a.B4AClass;
 import anywheresoftware.b4a.BA;
 import anywheresoftware.b4a.BALayout;
 import anywheresoftware.b4a.BA.CustomClass;
@@ -65,6 +67,7 @@ import anywheresoftware.b4a.BA.ShortName;
 import anywheresoftware.b4a.BA.Version;
 import anywheresoftware.b4a.BALayout.LayoutParams;
 import anywheresoftware.b4a.keywords.Common;
+import anywheresoftware.b4a.keywords.DesignerArgs;
 import anywheresoftware.b4a.keywords.constants.TypefaceWrapper;
 import anywheresoftware.b4a.objects.drawable.CanvasWrapper;
 import anywheresoftware.b4a.objects.drawable.ColorDrawable;
@@ -75,7 +78,7 @@ import anywheresoftware.b4a.objects.streams.File;
 @CustomClasses(values = {
 		@CustomClass(fileNameWithoutExtension="customview", name="Custom View (XUI)")	
 	})
-@Version(2.00f)
+@Version(2.20f)
 @ShortName("B4XView")
 @ActivityObject
 public class B4XViewWrapper extends AbsObjectWrapper<Object>{
@@ -623,8 +626,21 @@ public class B4XViewWrapper extends AbsObjectWrapper<Object>{
 		v.setPivotX(getWidth() / 2);
 		v.setPivotY(getHeight() / 2);
 	}
-	
-	
+	public void setSelectionStart(int s) {
+		SetSelection(s, 0);
+	}
+	public int getSelectionStart() {
+		return Selection.getSelectionStart(((EditText)getObject()).getText());
+	}
+	public int getSelectionLength() {
+		return Math.max(0, Selection.getSelectionEnd(((EditText)getObject()).getText()) - getSelectionStart());
+	}
+	public void SetSelection(int Start, int Length) {
+		Selection.setSelection(((EditText)getObject()).getText(), Start, Start + Length);
+	}
+	public void SelectAll() {
+		Selection.selectAll(((EditText)getObject()).getText());
+	}
 
 
 	@ShortName("B4XBitmap")
@@ -786,7 +802,16 @@ public class B4XViewWrapper extends AbsObjectWrapper<Object>{
 		private static String urlencode(String s) throws UnsupportedEncodingException {
 			return URLEncoder.encode(s, "utf8").replace("+", "%20");
 		}
-
+		public static void RegisterDesignerClass(Object ClassInstance) {
+			String clsName = ClassInstance.getClass().getName();
+			if (clsName.startsWith(BA.packageName) == false)
+				throw new RuntimeException("invalid class");
+			
+			DesignerArgs.targetsCache.put(clsName.substring(BA.packageName.length()+ 1), (B4AClass)ClassInstance);
+		}
+		public static Object GetRegisteredDesignerClass(String Module) {
+			return DesignerArgs.targetsCache.get(Module.toLowerCase(BA.cul));
+		}
 
 
 	}

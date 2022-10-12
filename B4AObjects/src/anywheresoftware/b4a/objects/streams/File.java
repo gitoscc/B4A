@@ -87,9 +87,10 @@ public class File {
 	/**
 	 * Returns true if the specified FileName exists in the specified Dir.
 	 *Note that the Android file system is case sensitive.
+	 *This method should not be used with File.DirAssets.
 	 *
 	 *Example:<code>
-	 *If File.Exists(File.DirDefaultExternal, "MyFile.txt") Then ...</code>
+	 *If File.Exists(File.DirInternal, "MyFile.txt") Then ...</code>
 	 */
 	public static boolean Exists(String Dir, String FileName) throws IOException {
 		if (Dir.equals(assetsDir) == false)
@@ -204,7 +205,7 @@ public class File {
 						new FileInputStream(new java.io.File(virtualAssetsFolder, FileName.toLowerCase(BA.cul)))));
 			}
 			else {
-				is.setObject(BA.applicationContext.getAssets().open(FileName.toLowerCase(BA.cul)));
+				is.setObject(BA.applicationContext.getAssets().open(FileName.toLowerCase(BA.cul).replace('/', '\\')));
 			}
 		}
 		else if (Dir.equals(ContentDir)) {
