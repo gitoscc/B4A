@@ -78,7 +78,7 @@ import anywheresoftware.b4a.objects.streams.File;
 @CustomClasses(values = {
 		@CustomClass(fileNameWithoutExtension="customview", name="Custom View (XUI)")	
 	})
-@Version(2.20f)
+@Version(2.32f)
 @ShortName("B4XView")
 @ActivityObject
 public class B4XViewWrapper extends AbsObjectWrapper<Object>{
@@ -244,6 +244,21 @@ public class B4XViewWrapper extends AbsObjectWrapper<Object>{
 	public void SetTextSizeAnimated(int Duration, float TextSize) {
 		asLabelWrapper().SetTextSizeAnimated(Duration, TextSize);		
 	}
+	public void setAlpha(float alpha) {
+		getViewObject().setAlpha(alpha);
+	}
+	public float getAlpha() {
+		return getViewObject().getAlpha();
+	}
+	public void SetAlphaAnimated(int Duration, float Alpha) {
+		if (Duration > 0) {
+			View v = getViewObject();
+			ObjectAnimator.ofFloat(v, "Alpha", getAlpha(), Alpha).setDuration(Duration).start();
+		}
+		else {
+			setAlpha(Alpha);
+		}
+	}
 	/**
 	 * Gets or sets the text size. Supported types:  EditText, Label, Button, CheckBox, RadioButton and ToggleButton.
 	 */
@@ -263,7 +278,7 @@ public class B4XViewWrapper extends AbsObjectWrapper<Object>{
 	public void setFont(B4XFont f) {
 		LabelWrapper lw = asLabelWrapper();
 		lw.setTextSize(f.textSize);
-		lw.setTypeface(f.typeface);
+		lw.setTypeface(f.getTypeface());
 	}
 
 	public void SetTextAlignment(String Vertical, String Horizontal)  {
@@ -690,6 +705,12 @@ public class B4XViewWrapper extends AbsObjectWrapper<Object>{
 		}
 		public TypefaceWrapper ToNativeFont() {
 			return (TypefaceWrapper)AbsObjectWrapper.ConvertToWrapper(new TypefaceWrapper(), typeface);
+		}
+		@Hide
+		public Typeface getTypeface() {
+			if (typeface == null)
+				throw new NullPointerException("font not set");
+			return typeface;
 		}
 
 	}
