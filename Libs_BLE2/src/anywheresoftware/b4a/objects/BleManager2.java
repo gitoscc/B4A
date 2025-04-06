@@ -51,12 +51,16 @@ import anywheresoftware.b4a.objects.collections.Map;
  * This library replaces the BLE library. It allows you to search for and connect to BLE devices.
  *It is supported by Android 4.3+ (API 18).
  */
-@Version(1.39f)
+@Version(1.41f)
 @ShortName("BleManager2")
 @Events(values={"StateChanged (State As Int)", "DeviceFound (Name As String, DeviceId As String, AdvertisingData As Map, RSSI As Double)",
 		"Disconnected", "Connected (Services As List)", "DataAvailable (ServiceId As String, Characteristics As Map)",
 		"WriteComplete (Characteristic As String, Status As Int)",
-"RssiAvailable (Success As Boolean, RSSI As Double)", "MtuChanged (Success As Boolean, MTU As Int)"})
+"RssiAvailable (Success As Boolean, RSSI As Double)", "MtuChanged (Success As Boolean, MTU As Int)", 
+"DescriptorRead (Success As Boolean, Descriptor As Object)", 
+"DescriptorWrite (Success As Boolean, Descriptor As Object)", 
+"PhyRead (Success As Boolean, PhyTx As Int, PhyRx As Int)",
+"PhyUpdate (Success As Boolean, PhyTx As Int, PhyRx As Int)"})
 @Permissions(values={"android.permission.BLUETOOTH", "android.permission.BLUETOOTH_ADMIN"})
 public class BleManager2 {
 	private String eventName;
@@ -71,11 +75,13 @@ public class BleManager2 {
 	public final ConcurrentHashMap<String, BluetoothDevice> devices = new ConcurrentHashMap<String, BluetoothDevice>();
 	@Hide
 	public UUID notifyDescriptor = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+	@Hide
+	public boolean charsAsObjects = false;
 	private final ArrayList<BluetoothGattCharacteristic> charsToReadQueue = new ArrayList<BluetoothGattCharacteristic>();
 	public static int STATE_POWERED_ON = BluetoothAdapter.STATE_ON, 
 			STATE_POWERED_OFF = BluetoothAdapter.STATE_OFF,
 			STATE_UNSUPPORTED = -9999;
-	
+
 	public boolean IsInitialized() {
 		return ba != null;
 	}
@@ -127,7 +133,7 @@ public class BleManager2 {
 	}
 	/**
 	 * Starts scanning for devices. The DeviceFound event will be raised when a device is found.
-	 *ServiceUUIDs - A list (or array) with service uuids. Devices that don't advertise these uuids will not be discovered.
+	 *ServiceUUIDs - A list with service uuids. Devices that don't advertise these uuids will not be discovered. Note that <b>all</b> of the UUIDs must be advertised. 
 	 *Pass Null to discover all devices.
 	 */
 	public void Scan(List ServiceUUIDs) {
@@ -307,8 +313,7 @@ public class BleManager2 {
 					Map data = new Map();
 					data.Initialize();
 					for (BluetoothGattCharacteristic chr : ser.getCharacteristics()) {
-						String uuid = chr.getUuid().toString();
-						data.Put(uuid, new byte[0]);
+						data.Put(charToKey(chr), new byte[0]);
 					}
 					ba.raiseEventFromDifferentThread(BleManager2.this, null, 0, eventName + "_dataavailable", false, 
 							new Object[] {Service, data});
@@ -320,6 +325,11 @@ public class BleManager2 {
 
 		}
 	}
+	private Object charToKey(BluetoothGattCharacteristic chr) {
+		if (charsAsObjects)
+			return chr;
+		return chr.getUuid().toString();
+	}
 	/**
 	 * Adds or removes a notification listener that monitor value changes.
 	 *The DataAvailable event will be raised when the value of the characteristic changes.
@@ -329,13 +339,15 @@ public class BleManager2 {
 	 *Notify - True to add a listener, false to remove it.
 	 */
 	public boolean SetNotify(String Service, String Characteristic, boolean Notify) {
-		return setNotify(Service, Characteristic, Notify, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-	}
-	private boolean setNotify(String Service, String Characteristic, boolean Notify, byte[] descriptorValue) {
 		BluetoothGattService ser = getService(Service);
 		BluetoothGattCharacteristic chr = getChar(ser, Characteristic);
+		return setNotify(chr, Notify, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+	}
+	
+	@Hide
+	public boolean setNotify(BluetoothGattCharacteristic chr, boolean Notify, byte[] descriptorValue) {
 		if (!gatt.setCharacteristicNotification(chr, Notify))
-			throw new RuntimeException("Error changing notification state: " + Characteristic);
+			throw new RuntimeException("Error changing notification state: " + chr.getUuid());
 		else {
 			BluetoothGattDescriptor descriptor = chr.getDescriptor(notifyDescriptor);
 			boolean res;
@@ -362,19 +374,25 @@ public class BleManager2 {
 	 *Returns True if successful.
 	 */
 	public boolean SetIndication(String Service, String Characteristic, boolean Notify) {
-		return setNotify(Service, Characteristic, Notify, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+		BluetoothGattService ser = getService(Service);
+		BluetoothGattCharacteristic chr = getChar(ser, Characteristic);
+		return setNotify(chr, Notify, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
 	}
 	/**
 	 * Writes the data to the specified characteristic.
 	 */
 	public void WriteData(String Service, String Characteristic, byte[] Data) throws InterruptedException {
 		BluetoothGattCharacteristic chr = getChar(getService(Service), Characteristic);
+		WriteData(chr, Data);
+	}
+	@Hide
+	public void WriteData(BluetoothGattCharacteristic chr, byte[] Data) throws InterruptedException {
 		chr.setValue(Data);
 		int retries = 5;
 		while (true) {
 			if (!gatt.writeCharacteristic(chr)) {
 				if (--retries <= 0)
-					throw new RuntimeException("Error writing data to: " + Characteristic);
+					throw new RuntimeException("Error writing data to: " + chr);
 			}
 			else
 				break;
@@ -419,7 +437,22 @@ public class BleManager2 {
 	}
 
 	class GattCallback extends BluetoothGattCallback {
-
+		@Override
+		public void onDescriptorRead (BluetoothGatt gatt, 
+                BluetoothGattDescriptor descriptor, 
+                int status) {
+			ba.raiseEventFromDifferentThread(BleManager2.this,null, 0, eventName + "_descriptorread", false, 
+					new Object[] {status == BluetoothGatt.GATT_SUCCESS, descriptor});
+			
+		}
+		@Override
+		public void onDescriptorWrite (BluetoothGatt gatt, 
+                BluetoothGattDescriptor descriptor, 
+                int status) {
+			ba.raiseEventFromDifferentThread(BleManager2.this,null, 0, eventName + "_descriptorwrite", false, 
+					new Object[] {status == BluetoothGatt.GATT_SUCCESS, descriptor});
+		}
+		
 		@Override
 		public void onConnectionStateChange(BluetoothGatt gatt, int status,
 				int newState) {
@@ -441,6 +474,7 @@ public class BleManager2 {
 					new Object[] {status == BluetoothGatt.GATT_SUCCESS, (double)rssi});
 		}
 
+		@Override
 		public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
 			ba.raiseEventFromDifferentThread(BleManager2.this,null, 0, eventName + "_mtuchanged", false, 
 					new Object[] {status == BluetoothGatt.GATT_SUCCESS, mtu});
@@ -477,12 +511,12 @@ public class BleManager2 {
 						BluetoothGattService ser = getService(characteristic.getService().getUuid().toString());
 						for (BluetoothGattCharacteristic chr : readableCharsFromService(ser)) {
 							byte[] b = chr.getValue();
-							data.Put(chr.getUuid().toString(), b == null ? new byte[0] : b);
+							data.Put(charToKey(chr), b == null ? new byte[0] : b);
 						}
 						for (BluetoothGattCharacteristic chr : ser.getCharacteristics()) {
-							String uuid = chr.getUuid().toString();
-							if (data.ContainsKey(uuid) == false)
-								data.Put(uuid, new byte[0]);
+							Object key = charToKey(chr);
+							if (data.ContainsKey(key) == false)
+								data.Put(key, new byte[0]);
 						}
 						ba.raiseEventFromDifferentThread(BleManager2.this, null, 0, eventName + "_dataavailable", false, 
 								new Object[] {characteristic.getService().getUuid().toString(), data});
@@ -501,7 +535,7 @@ public class BleManager2 {
 			if (characteristic == null || characteristic.getUuid() == null)
 				return;
 			ba.raiseEventFromDifferentThread(BleManager2.this, null, 0, eventName + "_writecomplete", false, 
-					new Object[] {characteristic.getUuid().toString(), status});
+					new Object[] {charToKey(characteristic), status});
 		}
 
 
@@ -512,17 +546,28 @@ public class BleManager2 {
 			Map data = new Map();
 			data.Initialize();
 			byte[] b = characteristic.getValue();
-			data.Put(characteristic.getUuid().toString(), b == null ? new byte[0] : b);
+			data.Put(charToKey(characteristic), b == null ? new byte[0] : b);
 			ba.raiseEventFromDifferentThread(BleManager2.this, null, 0, eventName + "_dataavailable", false, 
 					new Object[] {characteristic.getService().getUuid().toString(), data});
 
 		}
-
-
 		@Override
-		public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-				int status) {
+		public void onPhyRead (BluetoothGatt gatt, 
+                int txPhy, 
+                int rxPhy, 
+                int status) {
+			ba.raiseEventFromDifferentThread(BleManager2.this, null, 0, eventName + "_phyread", false, 
+					new Object[] {status == BluetoothGatt.GATT_SUCCESS, txPhy, rxPhy});
 		}
+		@Override
+		public void onPhyUpdate (BluetoothGatt gatt, 
+                int txPhy, 
+                int rxPhy, 
+                int status) {
+			ba.raiseEventFromDifferentThread(BleManager2.this, null, 0, eventName + "_phyupdate", false, 
+					new Object[] {status == BluetoothGatt.GATT_SUCCESS, txPhy, rxPhy});
+		}
+
 
 	}
 
